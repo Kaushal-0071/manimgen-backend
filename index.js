@@ -178,13 +178,13 @@ app.post("/generate-animation", async (req, res) => {
     const manimCode = await getManimCodeFromGemini(steps);
 
     // Step 3: Save Manim code to a Python file
-    const scriptPath = path.resolve("generated_manim_code.py");
-    saveManimCodeToFile(manimCode, scriptPath);
+    // const scriptPath = path.resolve("generated_manim_code.py");
+    // saveManimCodeToFile(manimCode, scriptPath);
 
-    // Step 4: Render Manim video
+    // // Step 4: Render Manim video
 
-    const outputVideoPath = path.resolve("output.mp4");
-    await runPythonScript(scriptPath, outputVideoPath);
+    // const outputVideoPath = path.resolve("output.mp4");
+    // await runPythonScript(scriptPath, outputVideoPath);
     res.json({
       code: manimCode,
       steps: steps,
@@ -192,7 +192,9 @@ app.post("/generate-animation", async (req, res) => {
     });
    
   } catch (err) {
+    
     res.status(500).json({ error: err.message });
+   
   }
 });
 
@@ -232,13 +234,13 @@ app.post("/regenerate", async (req, res) => {
     const manimCode = await getManimCodeFromGemini(steps);
 
     // Step 3: Save Manim code to a Python file
-    const scriptPath = path.resolve("generated_manim_code.py");
-    saveManimCodeToFile(manimCode, scriptPath);
+    // const scriptPath = path.resolve("generated_manim_code.py");
+    // saveManimCodeToFile(manimCode, scriptPath);
 
-    // Step 4: Render Manim video
+    // // Step 4: Render Manim video
 
-    const outputVideoPath = path.resolve("output.mp4");
-    await runPythonScript(scriptPath, outputVideoPath);
+    // const outputVideoPath = path.resolve("output.mp4");
+    // await runPythonScript(scriptPath, outputVideoPath);
     res.json({
       code: manimCode,
       steps: steps,
@@ -262,13 +264,13 @@ app.post("/resolve", async (req, res) => {
     const manimCode = await getManimCodeFromGemini(steps);
 
     // Step 3: Save Manim code to a Python file
-    const scriptPath = path.resolve("generated_manim_code.py");
-    saveManimCodeToFile(manimCode, scriptPath);
+    // const scriptPath = path.resolve("generated_manim_code.py");
+    // saveManimCodeToFile(manimCode, scriptPath);
 
-    // Step 4: Render Manim video
+    // // Step 4: Render Manim video
 
-    const outputVideoPath = path.resolve("output.mp4");
-    await runPythonScript(scriptPath, outputVideoPath);
+    // const outputVideoPath = path.resolve("output.mp4");
+    // await runPythonScript(scriptPath, outputVideoPath);
     res.json({
       code: manimCode,
       steps: steps,
@@ -302,6 +304,7 @@ app.post("/render", async (req, res) => {
     });
    
   } catch (err) {
+    console.error("here----------------------------------------------------"+err.message+"43443");
     res.status(500).json({ error: err.message });
   }
 });
