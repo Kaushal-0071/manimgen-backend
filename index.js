@@ -4,7 +4,8 @@ const bodyParser = require("body-parser");
 const { exec, spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
-const fsExtra = require('fs-extra');
+const fsExtra = require("fs-extra");
+require("dotenv").config();
 
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const app = express();
@@ -13,7 +14,7 @@ app.use(bodyParser.json());
 
 // Configure Gemini AI
 
-const apiKey = "AIzaSyA5KNa0Ru9PEUizO-Rpu65zCYX1QK8RthI";
+const apiKey = process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
 const model = genAI.getGenerativeModel({
   model: "gemini-2.0-flash-exp",
@@ -37,7 +38,7 @@ const getStepsFromGemini = async (prompt) => {
           role: "user",
           parts: [
             {
-              text: "give me steps to write a manim animation for the following prompt give perfect steps in 6-7 points dont give use less data",
+              text: "You are a Manim‑code planner. When given a user’s animation request, output exactly 6–7 numbered, concise, actionable planning steps you will follow to generate the Manim scene code. Do not output any code—only the internal steps (e.g. choose shape, set parameters, add to scene, render).",
             },
           ],
         },
@@ -60,7 +61,7 @@ const getManimCodeFromGemini = async (steps) => {
           role: "user",
           parts: [
             {
-              text: "give me only Manim code to write a manim animation for the following steps. Include a Scene class that inherits from Scene and add the construct method. This is important. Do not include any text, give only Manim code in a single scene. Check correctly the code, and give only correct code without errors. If any packages like numpy are required, import them in code.Donot add any main function the code should be only a single manim scene.",
+              text: "Generate only the complete Manim scene code—no explanations, comments, or extra text—for the following animation steps. Your output must define exactly one subclass of Scene with a construct(self): method containing all animation logic, include every necessary import (for example from manim import * or import numpy as np), omit any if __name__ == '__main__' or other functions, and implement the given steps in order with no errors.",
             },
           ],
         },
@@ -132,29 +133,33 @@ async function runPythonScript(scriptPath, outputPath) {
     });
   });
 }
-// const renderManimVideo = async (scriptPath, outputPath) => {
-//     try {
-//       // Ensure the media directory exists
-//       const mediaDir = path.resolve( 'media');
-//       if (!fs.existsSync(mediaDir)) {
-//         fs.mkdirSync(mediaDir);
-//       }
 
-//       return new Promise((resolve, reject) => {
-//         const command = `manim -pql --format=mp4 ${scriptPath} Scene -o ${outputPath}`;
-//         exec(command, { cwd: path.dirname(scriptPath) }, (error, stdout, stderr) => {
-//           if (error) {
-//             console.error('Manim error:', stderr);
-//             return reject(new Error(`Error rendering video: ${stderr || error.message}`));
-//           }
-//           console.log('Manim output:', stdout);
-//           resolve();
-//         });
-//       });
-//     } catch (err) {
-//       throw new Error(`Error during rendering: ${err.message}`);
-//     }
-//   };
+const getStepsFromGeminiRegen = async (prompt, code) => {
+  try {
+    const chatSession = model.startChat({
+      generationConfig,
+      history: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: "You are a Manim‑code planner: when I supply you with both a user’s natural‑language request and any existing code or error snippet, you will reply with exactly 6–7 numbered, concise, action‑first planning steps that you (the AI) will follow to produce the final, error‑free Manim Scene subclass (including imports and a single construct method). Do not output any code or explanation—only the internal roadmap steps, each naming the class/methods or parameters you will choose, how you will parse the prompt or fix errors, assemble mobjects, sequence animations, and render.",
+            },
+          ],
+        },
+      ],
+    });
+    const response = await chatSession.sendMessage(prompt + "\n" + code);
+    console.log(response.response.text());
+    return response.response.text();
+  } catch (err) {
+    throw new Error(`Error getting steps from Gemini: ${err.message}`);
+  }
+};
+
+function deleteFile(filePath) {
+  fsExtra.emptyDirSync(filePath);
+}
 
 // Routes
 
@@ -162,11 +167,8 @@ app.get("/", (req, res) => {
   res.json({ message: "Hello World!" });
 });
 
-function deleteFile(filePath) {
-  fsExtra.emptyDirSync(filePath);
-}
 app.post("/generate-animation", async (req, res) => {
-  deleteFile("media")
+  deleteFile("media");
   const { prompt } = req.body;
   console.log(prompt);
 
@@ -177,54 +179,19 @@ app.post("/generate-animation", async (req, res) => {
     // Step 2: Get Manim code from Gemini
     const manimCode = await getManimCodeFromGemini(steps);
 
-    // Step 3: Save Manim code to a Python file
-    // const scriptPath = path.resolve("generated_manim_code.py");
-    // saveManimCodeToFile(manimCode, scriptPath);
-
-    // // Step 4: Render Manim video
-
-    // const outputVideoPath = path.resolve("output.mp4");
-    // await runPythonScript(scriptPath, outputVideoPath);
+  
     res.json({
       code: manimCode,
       steps: steps,
-      
     });
-   
   } catch (err) {
-    
     res.status(500).json({ error: err.message });
-   
   }
 });
 
-
-const getStepsFromGeminiRegen = async (prompt,code) => {
-  try {
-    const chatSession = model.startChat({
-      generationConfig,
-      history: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: "give me steps to write a manim animation for the following prompt or error and code given. perfect steps in 6-7 points dont give useless data ",
-            },
-          ],
-        },
-      ],
-    });
-    const response = await chatSession.sendMessage(prompt+"\n"+code);
-    console.log(response.response.text());
-    return response.response.text();
-  } catch (err) {
-    throw new Error(`Error getting steps from Gemini: ${err.message}`);
-  }
-};
 app.post("/regenerate", async (req, res) => {
-  deleteFile("media")
+  deleteFile("media");
   const { input, code } = req.body;
-  
 
   try {
     // Step 1: Get steps from Gemini
@@ -233,20 +200,11 @@ app.post("/regenerate", async (req, res) => {
     // Step 2: Get Manim code from Gemini
     const manimCode = await getManimCodeFromGemini(steps);
 
-    // Step 3: Save Manim code to a Python file
-    // const scriptPath = path.resolve("generated_manim_code.py");
-    // saveManimCodeToFile(manimCode, scriptPath);
-
-    // // Step 4: Render Manim video
-
-    // const outputVideoPath = path.resolve("output.mp4");
-    // await runPythonScript(scriptPath, outputVideoPath);
+ 
     res.json({
       code: manimCode,
       steps: steps,
-      
     });
-   
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -254,7 +212,6 @@ app.post("/regenerate", async (req, res) => {
 
 app.post("/resolve", async (req, res) => {
   const { error, code } = req.body;
-  
 
   try {
     // Step 1: Get steps from Gemini
@@ -263,20 +220,11 @@ app.post("/resolve", async (req, res) => {
     // Step 2: Get Manim code from Gemini
     const manimCode = await getManimCodeFromGemini(steps);
 
-    // Step 3: Save Manim code to a Python file
-    // const scriptPath = path.resolve("generated_manim_code.py");
-    // saveManimCodeToFile(manimCode, scriptPath);
 
-    // // Step 4: Render Manim video
-
-    // const outputVideoPath = path.resolve("output.mp4");
-    // await runPythonScript(scriptPath, outputVideoPath);
     res.json({
       code: manimCode,
       steps: steps,
-      
     });
-   
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -287,8 +235,6 @@ app.post("/render", async (req, res) => {
   console.log(code);
 
   try {
-   
-
     // Step 3: Save Manim code to a Python file
     const scriptPath = path.resolve("generated_manim_code.py");
     saveManimCodeToFile(code, scriptPath);
@@ -299,12 +245,13 @@ app.post("/render", async (req, res) => {
     await runPythonScript(scriptPath, outputVideoPath);
     res.json({
       code: code,
-     
-      
     });
-   
   } catch (err) {
-    console.error("here----------------------------------------------------"+err.message+"43443");
+    console.error(
+      "here----------------------------------------------------" +
+        err.message +
+        "43443"
+    );
     res.status(500).json({ error: err.message });
   }
 });
